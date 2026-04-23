@@ -10,7 +10,8 @@ name = "usque-rs"
 path = "src/main.rs"
 
 [dependencies]
-quiche = { version = "0.22", features = ["boringssl-vendored"] }
+quiche = { version = "0.22", features = ["boringssl-boring-crate"] }
+boring = { version = "4.21.2", features = ["pq-experimental"] }
 octets = "0.3"
 
 tokio = { version = "1", features = ["io-util", "net", "macros", "rt-multi-thread", "time"] }
@@ -26,15 +27,7 @@ env_logger = "0.11"
 anyhow = "1"
 thiserror = "2"
 chrono = { version = "0.4", features = ["serde"] }
-rand = "0.8"
 hex = "0.4"
-rcgen = "0.13"
-pem = "3"
-x509-parser = "0.16"
-p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem"] }
-sec1 = { version = "0.7", features = ["pkcs8", "der", "pem"] }
-der = { version = "0.7", features = ["pem"] }
-pkcs8 = { version = "0.10", features = ["pem", "std"] }
 tun = { version = "0.7", features = ["async"] }
 rtnetlink = "0.14"
 netlink-packet-route = "0.21"

@@ -86,6 +86,8 @@ enum Commands {
         no_iproute2: bool,
         #[arg(short = 'n', long)]
         interface_name: Option<String>,
+        #[arg(short = 'q', long, default_value_t = false)]
+        disable_pq: bool,
     },
 }
 
@@ -112,6 +114,7 @@ async fn main() -> Result<()> {
             mtu,
             no_iproute2,
             interface_name,
+            disable_pq,
         } => {
             cmd_nativetun(
                 &cli.config,
@@ -124,6 +127,7 @@ async fn main() -> Result<()> {
                 mtu,
                 no_iproute2,
                 interface_name,
+                disable_pq,
             )
             .await
         }
@@ -187,6 +191,7 @@ async fn cmd_nativetun(
     mtu: u32,
     no_iproute2: bool,
     interface_name: Option<String>,
+    disable_pq: bool,
 ) -> Result<()> {
     let cfg = config::Config::load(config_path)?;
     eprintln!("Config loaded from {config_path}");
@@ -226,6 +231,7 @@ async fn cmd_nativetun(
         sni: sni.to_string(),
         keepalive_period,
         mtu,
+        disable_pq,
     };
 
     tunnel::maintain_tunnel(&cfg, &tunnel_cfg, tun_dev).await

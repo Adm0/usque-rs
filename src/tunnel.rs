@@ -19,6 +19,7 @@ pub struct TunnelConfig {
     pub sni: String,
     pub keepalive_period: Duration,
     pub mtu: u32,
+    pub disable_pq: bool,
 }
 
 struct Stats {
@@ -136,21 +137,11 @@ where
     R: tokio::io::AsyncRead + Unpin,
     W: tokio::io::AsyncWrite + Unpin,
 {
-    let tls_material = tls::prepare_tls_material(config)?;
+    let mut quic_config = tls::prepare_quic_config(config, tunnel_cfg)?;
 
-    let mut quic_config = quiche::Config::new(quiche::PROTOCOL_VERSION)
-        .map_err(|e| anyhow::anyhow!("quiche config: {e}"))?;
-
-    quic_config.verify_peer(false);
     quic_config
         .set_application_protos(quiche::h3::APPLICATION_PROTOCOL)
         .map_err(|e| anyhow::anyhow!("set ALPN: {e}"))?;
-    quic_config
-        .load_cert_chain_from_pem_file(tls_material.cert_pem_file.path().to_str().unwrap())
-        .map_err(|e| anyhow::anyhow!("load cert: {e}"))?;
-    quic_config
-        .load_priv_key_from_pem_file(tls_material.key_pem_file.path().to_str().unwrap())
-        .map_err(|e| anyhow::anyhow!("load key: {e}"))?;
 
     quic_config.set_max_idle_timeout(0);
     quic_config.set_max_recv_udp_payload_size(MAX_DATAGRAM_SIZE);
@@ -232,16 +223,6 @@ where
         }
     }
 
-    // Verify endpoint key pinning
-    if let Some(peer_cert) = conn.peer_cert() {
-        if !tls::verify_endpoint_key(peer_cert, &tls_material.endpoint_pub_key_spki_der) {
-            bail!("peer certificate public key does not match pinned endpoint key");
-        }
-        log::debug!("Endpoint key pinning verified");
-    } else {
-        log::warn!("No peer certificate received; skipping key pinning");
-    }
-
     // Set up HTTP/3
     let mut h3_config = quiche::h3::Config::new().map_err(|e| anyhow::anyhow!("h3 config: {e}"))?;
     h3_config.enable_extended_connect(true);
@@ -253,11 +234,17 @@ where
     let req = vec![
         quiche::h3::Header::new(b":method", b"CONNECT"),
         quiche::h3::Header::new(b":protocol", b"cf-connect-ip"),
-        quiche::h3::Header::new(b":scheme", b"https"),
+        quiche::h3::Header::new(b":scheme", b"http"),
         quiche::h3::Header::new(b":authority", b"cloudflareaccess.com"),
         quiche::h3::Header::new(b":path", b"/"),
-        quiche::h3::Header::new(b"capsule-protocol", b"?1"),
-        quiche::h3::Header::new(b"user-agent", b""),
+        quiche::h3::Header::new(
+            b"pq-enabled",
+            if tunnel_cfg.disable_pq {
+                b"false"
+            } else {
+                b"true"
+            },
+        ),
     ];
 
     let stream_id = h3_conn
