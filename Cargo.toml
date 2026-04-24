@@ -29,13 +29,19 @@ thiserror = "2"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.4"
 tun = { version = "0.7", features = ["async"] }
-rtnetlink = "0.14"
-netlink-packet-route = "0.21"
 futures = "0.3"
 tempfile = "3"
 time = "0.3"
 # Software fallback for 64-bit atomics on targets without native support (e.g. armv5te)
 portable-atomic = { version = "1", features = ["fallback"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rtnetlink = "0.14"
+netlink-packet-route = "0.21"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock"] }
+
 
 [profile.release]
 opt-level = 3
