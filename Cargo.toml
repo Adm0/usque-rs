@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 quiche = { version = "0.22", features = ["boringssl-boring-crate"] }
-boring = "4.21.2"
+boring = { version = "4.21.2", features = ["pq-experimental"] }
 octets = "0.3"
 
 tokio = { version = "1", features = ["io-util", "net", "macros", "rt-multi-thread", "time"] }

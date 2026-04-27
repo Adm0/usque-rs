@@ -6,7 +6,9 @@ use boring::ssl::{SslAlert, SslContextBuilder, SslMethod, SslVerifyError, SslVer
 use boring::x509::X509;
 
 use crate::config::Config;
+use crate::tunnel::TunnelConfig;
 
+const CURVES_PQC: &str = "P256Kyber768Draft00:P-256:P-384:P-521";
 const CURVES_DEFAULT: &str = "P-256:P-384:P-521";
 const SIGALGS_DEFAULT: &str =
     "ECDSA+SHA256:ECDSA+SHA384:ECDSA+SHA512:RSA-PSS+SHA256:RSA-PSS+SHA384:RSA+SHA256:RSA+SHA384";
@@ -36,7 +38,7 @@ fn create_certificate(priv_key: &PKey<Private>) -> Result<X509> {
 
 // Set the private key, client certificate, and add peer certificate verification.
 // Returns prepared quiche quic configuration
-pub fn prepare_quic_config(config: &Config) -> Result<quiche::Config> {
+pub fn prepare_quic_config(config: &Config, tunnel_cfg: &TunnelConfig) -> Result<quiche::Config> {
     let peer_pkey_der = config.get_endpoint_pub_key_der()?;
     let priv_key_der = config.get_ec_private_key_der()?;
 
@@ -82,9 +84,12 @@ pub fn prepare_quic_config(config: &Config) -> Result<quiche::Config> {
         Ok(())
     });
 
-    context
-        .set_curves_list(CURVES_DEFAULT)
-        .unwrap_or_else(|e| log::error!("set curves list: {e}"));
+    if tunnel_cfg.disable_pqc {
+        context.set_curves_list(CURVES_DEFAULT)
+    } else {
+        context.set_curves_list(CURVES_PQC)
+    }
+    .unwrap_or_else(|e| log::error!("set curves list: {e}"));
 
     context
         .set_sigalgs_list(SIGALGS_DEFAULT)

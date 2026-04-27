@@ -19,6 +19,7 @@ pub struct TunnelConfig {
     pub sni: String,
     pub keepalive_period: Duration,
     pub mtu: u32,
+    pub disable_pqc: bool,
 }
 
 struct Stats {
@@ -136,8 +137,8 @@ where
     R: tokio::io::AsyncRead + Unpin,
     W: tokio::io::AsyncWrite + Unpin,
 {
-    let mut quic_config =
-        tls::prepare_quic_config(config).map_err(|e| anyhow::anyhow!("quiche config: {e}"))?;
+    let mut quic_config = tls::prepare_quic_config(config, tunnel_cfg)
+        .map_err(|e| anyhow::anyhow!("quiche config: {e}"))?;
 
     quic_config
         .set_application_protos(quiche::h3::APPLICATION_PROTOCOL)
@@ -231,14 +232,19 @@ where
         .map_err(|e| anyhow::anyhow!("h3 connection: {e}"))?;
 
     // Send CONNECT request for cf-connect-ip
-    let req = vec![
+    let mut req = vec![
         quiche::h3::Header::new(b":method", b"CONNECT"),
         quiche::h3::Header::new(b":protocol", b"cf-connect-ip"),
         quiche::h3::Header::new(b":scheme", b"http"),
         quiche::h3::Header::new(b":authority", b"cloudflareaccess.com"),
         quiche::h3::Header::new(b":path", b"/"),
-        quiche::h3::Header::new(b"pq-enabled", b"false"),
     ];
+
+    if tunnel_cfg.disable_pqc {
+        req.push(quiche::h3::Header::new(b"pq-enabled", b"false"));
+    } else {
+        req.push(quiche::h3::Header::new(b"pq-enabled", b"true"));
+    }
 
     let stream_id = h3_conn
         .send_request(&mut conn, &req, false)
