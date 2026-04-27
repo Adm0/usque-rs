@@ -71,6 +71,7 @@ jobs:
 
       - name: Build (release)
         env:
+          RUSTFLAGS: ""
           CARGO_PROFILE_RELEASE_PANIC: ${{ matrix.panic_strategy || 'abort' }}
         run: cross build --release --target ${{ matrix.target }}
 
