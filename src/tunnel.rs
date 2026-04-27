@@ -234,11 +234,10 @@ where
     let req = vec![
         quiche::h3::Header::new(b":method", b"CONNECT"),
         quiche::h3::Header::new(b":protocol", b"cf-connect-ip"),
-        quiche::h3::Header::new(b":scheme", b"https"),
+        quiche::h3::Header::new(b":scheme", b"http"),
         quiche::h3::Header::new(b":authority", b"cloudflareaccess.com"),
         quiche::h3::Header::new(b":path", b"/"),
-        quiche::h3::Header::new(b"capsule-protocol", b"?1"),
-        quiche::h3::Header::new(b"user-agent", b""),
+        quiche::h3::Header::new(b"pq-enabled", b"false"),
     ];
 
     let stream_id = h3_conn
