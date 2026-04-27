@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -47,7 +46,7 @@ impl Config {
             .to_string();
 
         Self {
-            private_key: base64::engine::general_purpose::STANDARD.encode(priv_key_der),
+            private_key: boring::base64::encode_block(priv_key_der),
             endpoint_v4: ep_v4,
             endpoint_v6: ep_v6,
             endpoint_pub_key: peer.public_key.clone(),
@@ -60,14 +59,13 @@ impl Config {
     }
 
     pub fn get_ec_private_key_der(&self) -> Result<Vec<u8>> {
-        base64::engine::general_purpose::STANDARD
-            .decode(&self.private_key)
+        boring::base64::decode_block(&self.private_key)
             .with_context(|| "failed to decode private key from base64")
     }
 
     pub fn get_endpoint_pub_key_der(&self) -> Result<Vec<u8>> {
-        let pem = pem::parse(&self.endpoint_pub_key)
+        let public_key = boring::pkey::PKey::public_key_from_pem(self.endpoint_pub_key.as_bytes())
             .with_context(|| "failed to parse endpoint public key PEM")?;
-        Ok(pem.contents().to_vec())
+        Ok(public_key.public_key_to_der()?)
     }
 }

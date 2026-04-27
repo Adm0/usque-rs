@@ -136,21 +136,12 @@ where
     R: tokio::io::AsyncRead + Unpin,
     W: tokio::io::AsyncWrite + Unpin,
 {
-    let tls_material = tls::prepare_tls_material(config)?;
+    let mut quic_config =
+        tls::prepare_quic_config(config).map_err(|e| anyhow::anyhow!("quiche config: {e}"))?;
 
-    let mut quic_config = quiche::Config::new(quiche::PROTOCOL_VERSION)
-        .map_err(|e| anyhow::anyhow!("quiche config: {e}"))?;
-
-    quic_config.verify_peer(false);
     quic_config
         .set_application_protos(quiche::h3::APPLICATION_PROTOCOL)
         .map_err(|e| anyhow::anyhow!("set ALPN: {e}"))?;
-    quic_config
-        .load_cert_chain_from_pem_file(tls_material.cert_pem_file.path().to_str().unwrap())
-        .map_err(|e| anyhow::anyhow!("load cert: {e}"))?;
-    quic_config
-        .load_priv_key_from_pem_file(tls_material.key_pem_file.path().to_str().unwrap())
-        .map_err(|e| anyhow::anyhow!("load key: {e}"))?;
 
     quic_config.set_max_idle_timeout(0);
     quic_config.set_max_recv_udp_payload_size(MAX_DATAGRAM_SIZE);
@@ -230,16 +221,6 @@ where
         if conn.is_closed() {
             bail!("connection closed during handshake");
         }
-    }
-
-    // Verify endpoint key pinning
-    if let Some(peer_cert) = conn.peer_cert() {
-        if !tls::verify_endpoint_key(peer_cert, &tls_material.endpoint_pub_key_spki_der) {
-            bail!("peer certificate public key does not match pinned endpoint key");
-        }
-        log::debug!("Endpoint key pinning verified");
-    } else {
-        log::warn!("No peer certificate received; skipping key pinning");
     }
 
     // Set up HTTP/3

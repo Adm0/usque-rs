@@ -1,7 +1,6 @@
 use anyhow::{bail, Context, Result};
-use base64::Engine;
-use p256::ecdsa::SigningKey;
-use p256::pkcs8::EncodePrivateKey;
+use boring::ec::{EcGroup, EcKey};
+use boring::{nid::Nid, pkey::PKey};
 use ring::rand::SecureRandom;
 use serde::{Deserialize, Serialize};
 
@@ -95,7 +94,7 @@ fn random_wg_pubkey() -> Result<String> {
     ring::rand::SystemRandom::new()
         .fill(&mut key)
         .map_err(|_| anyhow::anyhow!("RNG failure"))?;
-    Ok(base64::engine::general_purpose::STANDARD.encode(key))
+    Ok(boring::base64::encode_block(&key))
 }
 
 fn random_android_serial() -> Result<String> {
@@ -169,33 +168,21 @@ pub async fn register(model: &str, locale: &str, jwt: Option<&str>) -> Result<Ac
 }
 
 pub fn generate_ec_keypair() -> Result<(Vec<u8>, Vec<u8>)> {
-    let signing_key = SigningKey::random(&mut rand::thread_rng());
+    let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
 
-    let priv_key_der = signing_key
-        .to_pkcs8_der()
+    let ec_key = EcKey::generate(&group).context("failed to generate EC key")?;
+
+    let private_key = PKey::from_ec_key(ec_key).context("failed to create PKey")?;
+
+    let priv_key_der = private_key
+        .private_key_to_der_pkcs8()
         .context("failed to encode private key to DER")?;
 
-    let pub_key_der = signing_key.verifying_key().to_encoded_point(false);
-    let pub_key_bytes = pub_key_der.as_bytes();
-
-    let spki = der::asn1::ObjectIdentifier::new_unwrap("1.2.840.10045.2.1");
-    let curve_oid = der::asn1::ObjectIdentifier::new_unwrap("1.2.840.10045.3.1.7");
-
-    use der::Encode;
-    let algorithm = pkcs8::AlgorithmIdentifierRef {
-        oid: spki,
-        parameters: Some(der::asn1::AnyRef::from(&curve_oid)),
-    };
-    let spki_doc = pkcs8::SubjectPublicKeyInfoRef {
-        algorithm,
-        subject_public_key: der::asn1::BitStringRef::from_bytes(pub_key_bytes)
-            .context("failed to create bit string")?,
-    };
-    let pub_key_spki = spki_doc
-        .to_der()
+    let pub_key_der = private_key
+        .public_key_to_der()
         .context("failed to encode public key to DER")?;
 
-    Ok((priv_key_der.as_bytes().to_vec(), pub_key_spki))
+    Ok((priv_key_der, pub_key_der))
 }
 
 pub async fn enroll_key(
@@ -204,7 +191,7 @@ pub async fn enroll_key(
     device_name: Option<&str>,
 ) -> Result<AccountData> {
     let client = build_client()?;
-    let pub_key_b64 = base64::engine::general_purpose::STANDARD.encode(pub_key_der);
+    let pub_key_b64 = boring::base64::encode_block(pub_key_der);
 
     let update = DeviceUpdate {
         key: pub_key_b64,
